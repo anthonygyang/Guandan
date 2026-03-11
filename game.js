@@ -1,5 +1,279 @@
 // ========== 掼蛋游戏核心 ==========
 
+// ========== 音效系统 (Web Audio API) ==========
+const SoundEngine = (() => {
+    let audioCtx = null;
+    let bgmGain = null;
+    let sfxGain = null;
+    let bgmSource = null;
+    let bgmPlaying = false;
+    let muted = false;
+    let bgmMuted = false;
+
+    function getCtx() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            bgmGain = audioCtx.createGain();
+            bgmGain.gain.value = 0.25;
+            bgmGain.connect(audioCtx.destination);
+            sfxGain = audioCtx.createGain();
+            sfxGain.gain.value = 0.5;
+            sfxGain.connect(audioCtx.destination);
+        }
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        return audioCtx;
+    }
+
+    // 播放一个音调
+    function playTone(freq, duration, type = 'sine', gainVal = 0.3, delay = 0) {
+        if (muted) return;
+        const ctx = getCtx();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, ctx.currentTime + delay);
+        gain.gain.linearRampToValueAtTime(gainVal, ctx.currentTime + delay + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+        osc.connect(gain);
+        gain.connect(sfxGain);
+        osc.start(ctx.currentTime + delay);
+        osc.stop(ctx.currentTime + delay + duration + 0.05);
+    }
+
+    // 播放和弦
+    function playChord(freqs, duration, type = 'sine', gainVal = 0.15, delay = 0) {
+        freqs.forEach(f => playTone(f, duration, type, gainVal, delay));
+    }
+
+    // 噪声（用于洗牌等）
+    function playNoise(duration, gainVal = 0.1) {
+        if (muted) return;
+        const ctx = getCtx();
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * 0.5;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const bandpass = ctx.createBiquadFilter();
+        bandpass.type = 'bandpass';
+        bandpass.frequency.value = 2000;
+        bandpass.Q.value = 0.5;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(gainVal, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        source.connect(bandpass);
+        bandpass.connect(gain);
+        gain.connect(sfxGain);
+        source.start();
+    }
+
+    // --- 具体音效 ---
+
+    // 选牌：轻快短促的"咔"
+    function sfxSelect() {
+        playTone(800, 0.08, 'square', 0.12);
+    }
+
+    // 取消选牌
+    function sfxDeselect() {
+        playTone(500, 0.06, 'square', 0.08);
+    }
+
+    // 出牌：清脆的甩牌声
+    function sfxPlayCard() {
+        playNoise(0.08, 0.2);
+        playTone(600, 0.1, 'triangle', 0.2, 0.03);
+        playTone(900, 0.08, 'triangle', 0.15, 0.08);
+    }
+
+    // 不出/过牌
+    function sfxPass() {
+        playTone(300, 0.15, 'sine', 0.15);
+        playTone(250, 0.15, 'sine', 0.12, 0.1);
+    }
+
+    // 炸弹！！震撼音效
+    function sfxBomb() {
+        playNoise(0.3, 0.35);
+        playTone(100, 0.4, 'sawtooth', 0.3);
+        playTone(80, 0.5, 'square', 0.2, 0.1);
+        playChord([200, 250, 300], 0.3, 'sawtooth', 0.15, 0.15);
+    }
+
+    // 火箭（天王炸）：最强音效
+    function sfxRocket() {
+        playNoise(0.4, 0.4);
+        playTone(80, 0.6, 'sawtooth', 0.35);
+        playTone(120, 0.5, 'square', 0.3, 0.1);
+        playTone(200, 0.4, 'sawtooth', 0.25, 0.2);
+        playChord([300, 400, 500, 600], 0.5, 'square', 0.1, 0.3);
+    }
+
+    // 同花顺
+    function sfxTonghuashun() {
+        playTone(523, 0.12, 'triangle', 0.2);
+        playTone(659, 0.12, 'triangle', 0.2, 0.1);
+        playTone(784, 0.12, 'triangle', 0.2, 0.2);
+        playTone(1047, 0.2, 'triangle', 0.25, 0.3);
+    }
+
+    // 提示音
+    function sfxHint() {
+        playTone(660, 0.1, 'sine', 0.15);
+        playTone(880, 0.1, 'sine', 0.15, 0.1);
+    }
+
+    // 无效出牌
+    function sfxInvalid() {
+        playTone(200, 0.15, 'square', 0.15);
+        playTone(150, 0.2, 'square', 0.12, 0.12);
+    }
+
+    // 发牌/洗牌
+    function sfxDeal() {
+        for (let i = 0; i < 6; i++) {
+            playNoise(0.04, 0.08);
+            playTone(1200 + i * 100, 0.05, 'triangle', 0.06, i * 0.06);
+        }
+    }
+
+    // 胜利
+    function sfxWin() {
+        const melody = [523, 659, 784, 1047];
+        melody.forEach((f, i) => {
+            playTone(f, 0.2, 'triangle', 0.2, i * 0.15);
+        });
+        playChord([523, 659, 784, 1047], 0.5, 'sine', 0.1, 0.6);
+    }
+
+    // 失败
+    function sfxLose() {
+        playTone(400, 0.25, 'sine', 0.2);
+        playTone(350, 0.25, 'sine', 0.18, 0.2);
+        playTone(300, 0.35, 'sine', 0.15, 0.4);
+    }
+
+    // 按钮点击
+    function sfxClick() {
+        playTone(700, 0.06, 'sine', 0.1);
+    }
+
+    // 归组
+    function sfxGroup() {
+        playTone(523, 0.08, 'triangle', 0.15);
+        playTone(659, 0.08, 'triangle', 0.15, 0.07);
+        playTone(784, 0.1, 'triangle', 0.15, 0.14);
+    }
+
+    // --- 背景音乐（程序生成的轻快旋律循环） ---
+    function startBGM() {
+        if (bgmPlaying || bgmMuted) return;
+        const ctx = getCtx();
+
+        // 生成一段循环的轻快音乐 buffer
+        const bpm = 120;
+        const beatDur = 60 / bpm;
+        const bars = 8;
+        const totalBeats = bars * 4;
+        const totalDuration = totalBeats * beatDur;
+        const sampleRate = ctx.sampleRate;
+        const totalSamples = Math.ceil(totalDuration * sampleRate);
+        const buffer = ctx.createBuffer(2, totalSamples, sampleRate);
+
+        // 简单旋律音符 (C大调, 欢快风格)
+        const melodyNotes = [
+            523, 523, 659, 659, 784, 784, 659, 0,
+            587, 587, 523, 523, 494, 494, 523, 0,
+            659, 659, 784, 784, 880, 880, 784, 0,
+            659, 659, 587, 587, 523, 523, 523, 0
+        ];
+        // 低音伴奏
+        const bassNotes = [
+            262, 0, 330, 0, 262, 0, 330, 0,
+            294, 0, 262, 0, 247, 0, 262, 0,
+            330, 0, 392, 0, 330, 0, 392, 0,
+            330, 0, 294, 0, 262, 0, 262, 0
+        ];
+
+        for (let ch = 0; ch < 2; ch++) {
+            const channelData = buffer.getChannelData(ch);
+            for (let beat = 0; beat < totalBeats; beat++) {
+                const startSample = Math.floor(beat * beatDur * sampleRate);
+                const endSample = Math.min(Math.floor((beat + 1) * beatDur * sampleRate), totalSamples);
+                const melodyFreq = melodyNotes[beat % melodyNotes.length];
+                const bassFreq = bassNotes[beat % bassNotes.length];
+                for (let i = startSample; i < endSample; i++) {
+                    const t = (i - startSample) / sampleRate;
+                    const env = Math.max(0, 1 - t / beatDur) * 0.7; // 衰减包络
+                    let sample = 0;
+                    if (melodyFreq > 0) {
+                        // 旋律：柔和正弦波
+                        sample += Math.sin(2 * Math.PI * melodyFreq * t) * 0.12 * env;
+                    }
+                    if (bassFreq > 0) {
+                        // 低音：三角波
+                        const p = (bassFreq * t) % 1;
+                        const tri = 2 * Math.abs(2 * p - 1) - 1;
+                        sample += tri * 0.06 * env;
+                    }
+                    channelData[i] += sample;
+                }
+            }
+        }
+
+        bgmSource = ctx.createBufferSource();
+        bgmSource.buffer = buffer;
+        bgmSource.loop = true;
+        bgmSource.connect(bgmGain);
+        bgmSource.start();
+        bgmPlaying = true;
+    }
+
+    function stopBGM() {
+        if (bgmSource) {
+            try { bgmSource.stop(); } catch (e) {}
+            bgmSource = null;
+        }
+        bgmPlaying = false;
+    }
+
+    function toggleMute() {
+        muted = !muted;
+        if (muted) stopBGM();
+        return muted;
+    }
+
+    function toggleBGM() {
+        bgmMuted = !bgmMuted;
+        if (bgmMuted) {
+            stopBGM();
+        } else {
+            startBGM();
+        }
+        return bgmMuted;
+    }
+
+    function isMuted() { return muted; }
+    function isBgmMuted() { return bgmMuted; }
+
+    // 初始化（需要用户交互后调用）
+    function init() {
+        getCtx();
+    }
+
+    return {
+        init, sfxSelect, sfxDeselect, sfxPlayCard, sfxPass,
+        sfxBomb, sfxRocket, sfxTonghuashun, sfxHint, sfxInvalid,
+        sfxDeal, sfxWin, sfxLose, sfxClick, sfxGroup,
+        startBGM, stopBGM, toggleMute, toggleBGM,
+        isMuted, isBgmMuted
+    };
+})();
+
 // --- 常量定义 ---
 const SUITS = ['♠', '♥', '♣', '♦'];
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -1544,8 +1818,10 @@ function toggleCardSelection(index) {
     state.selectedGroupIndex = -1;
     if (state.selectedIndices.has(index)) {
         state.selectedIndices.delete(index);
+        SoundEngine.sfxDeselect();
     } else {
         state.selectedIndices.add(index);
+        SoundEngine.sfxSelect();
     }
     renderPlayerHand();
 }
@@ -1558,6 +1834,11 @@ function showScreen(id) {
 }
 
 function startRound() {
+    // 初始化音效 & 开始背景音乐
+    SoundEngine.init();
+    SoundEngine.sfxDeal();
+    SoundEngine.startBGM();
+
     // 先更新级牌信息，确保排序使用正确的trumpRank
     updateLevelDisplay();
 
@@ -1622,6 +1903,7 @@ function playerPlay() {
 
     if (handInfo.type === HAND_TYPE.INVALID) {
         showMessage('无效的牌型！');
+        SoundEngine.sfxInvalid();
         return;
     }
 
@@ -1629,10 +1911,20 @@ function playerPlay() {
     const lastInfo = (state.lastPlayed && state.lastPlayedBy !== 'player') ? state.lastPlayed : null;
     if (lastInfo && !canBeat(handInfo, lastInfo)) {
         showMessage('出的牌不够大！');
+        SoundEngine.sfxInvalid();
         return;
     }
 
-    // 出牌成功
+    // 出牌成功 - 播放对应音效
+    if (handInfo.type === HAND_TYPE.ROCKET) {
+        SoundEngine.sfxRocket();
+    } else if (handInfo.type === HAND_TYPE.BOMB_TONGHUA) {
+        SoundEngine.sfxTonghuashun();
+    } else if (BOMB_ORDER.includes(handInfo.type)) {
+        SoundEngine.sfxBomb();
+    } else {
+        SoundEngine.sfxPlayCard();
+    }
     state.lastPlayed = handInfo;
     state.lastPlayed.cards = cards;
     state.lastPlayedBy = 'player';
@@ -1670,6 +1962,8 @@ function playerPass() {
     if (state.currentTurn !== 'player' || !state.gameActive) return;
     if (!state.lastPlayed || state.lastPlayedBy === 'player') return;
 
+    SoundEngine.sfxPass();
+
     state.selectedIndices = new Set();
     state.selectedGroupIndex = -1;
     state.hintIndex = 0;
@@ -1697,6 +1991,7 @@ function aiTurn() {
 
     if (!decision) {
         // AI不出
+        SoundEngine.sfxPass();
         renderPlayedCards('ai-played', 'pass');
         renderPlayedCards('player-played', null);
         showMessage('电脑不出，轮到你了！');
@@ -1714,6 +2009,17 @@ function aiTurn() {
     const cards = decision.indices.map(i => state.aiHand[i]);
     const handInfo = identifyHand(cards, state.aiTrumpRank);
     handInfo.cards = cards;
+
+    // AI出牌音效
+    if (handInfo.type === HAND_TYPE.ROCKET) {
+        SoundEngine.sfxRocket();
+    } else if (handInfo.type === HAND_TYPE.BOMB_TONGHUA) {
+        SoundEngine.sfxTonghuashun();
+    } else if (BOMB_ORDER.includes(handInfo.type)) {
+        SoundEngine.sfxBomb();
+    } else {
+        SoundEngine.sfxPlayCard();
+    }
 
     state.lastPlayed = handInfo;
     state.lastPlayedBy = 'ai';
@@ -1762,6 +2068,12 @@ function getHandTypeName(type) {
 function endRound(winner) {
     state.gameActive = false;
     state.lastRoundWinner = winner;
+    SoundEngine.stopBGM();
+    if (winner === 'player') {
+        SoundEngine.sfxWin();
+    } else {
+        SoundEngine.sfxLose();
+    }
 
     // 赢家使用的trumpRank（用于判定拖）
     const winnerTrumpRank = winner === 'player' ? state.trumpRank : state.aiTrumpRank;
@@ -1865,6 +2177,7 @@ function endRound(winner) {
 // 提示功能
 function showHint() {
     if (state.currentTurn !== 'player' || !state.gameActive) return;
+    SoundEngine.sfxHint();
 
     const lastInfo = (state.lastPlayed && state.lastPlayedBy !== 'player') ? state.lastPlayed : null;
 
@@ -1947,6 +2260,7 @@ function manualGroup() {
 function selectGroupCards(groupIndex) {
     const group = state.cardGroups[groupIndex];
     if (!group) return;
+    SoundEngine.sfxSelect();
 
     // 如果点击的是已选中的组，取消选中
     if (state.selectedGroupIndex === groupIndex) {
@@ -2363,18 +2677,22 @@ document.getElementById('btn-hint').addEventListener('click', () => {
 });
 
 document.getElementById('btn-group').addEventListener('click', () => {
+    SoundEngine.sfxGroup();
     manualGroup();
 });
 
 document.getElementById('btn-auto-group').addEventListener('click', () => {
+    SoundEngine.sfxGroup();
     autoGroupCards();
 });
 
 document.getElementById('btn-clear-groups').addEventListener('click', () => {
+    SoundEngine.sfxClick();
     clearAllGroups();
 });
 
 document.getElementById('btn-next-round').addEventListener('click', () => {
+    SoundEngine.sfxClick();
     if (state.playerLevel >= 14 || state.aiLevel >= 14) {
         // 重新开始
         state.playerLevel = 2;
@@ -2390,3 +2708,16 @@ document.getElementById('btn-next-round').addEventListener('click', () => {
 
 // 初始化
 updateLevelDisplay();
+
+// 音效控制按钮
+document.getElementById('btn-bgm').addEventListener('click', () => {
+    const bgmOff = SoundEngine.toggleBGM();
+    document.getElementById('btn-bgm').textContent = bgmOff ? '🎵' : '🎵';
+    document.getElementById('btn-bgm').classList.toggle('off', bgmOff);
+});
+
+document.getElementById('btn-sfx').addEventListener('click', () => {
+    const sfxOff = SoundEngine.toggleMute();
+    document.getElementById('btn-sfx').textContent = sfxOff ? '🔇' : '🔊';
+    document.getElementById('btn-sfx').classList.toggle('off', sfxOff);
+});

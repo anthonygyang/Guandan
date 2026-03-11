@@ -214,6 +214,32 @@ body {
 .round-info {
     color: rgba(200, 180, 255, 0.6);
     font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sound-btn {
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    color: #fff;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+
+.sound-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.sound-btn.off {
+    opacity: 0.4;
+    filter: grayscale(1);
 }
 
 /* ========== 电脑区域 ========== */

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="screen-orientation" content="landscape">
+    <meta name="mobile-web-app-capable" content="yes">
+    <title>掼蛋 - 1v1</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <!-- 竖屏提示遮罩 -->
+        <div id="rotate-hint" class="rotate-hint">
+            <div class="rotate-content">
+                <div class="rotate-icon">📱</div>
+                <div class="rotate-arrow">↻</div>
+                <p>请将手机横过来游玩</p>
+            </div>
+        </div>
+
+        <!-- 开始界面 -->
+        <div id="start-screen" class="screen">
+            <div class="start-content">
+                <h1 class="game-title">掼 蛋</h1>
+                <p class="game-subtitle">经典掼蛋 · 1v1 对战</p>
+                <div class="level-display-start">
+                    <span class="level-badge player-level-badge">你: <span id="start-player-level">2</span></span>
+                    <span class="vs-text">VS</span>
+                    <span class="level-badge ai-level-badge">电脑: <span id="start-ai-level">2</span></span>
+                </div>
+                <button id="btn-start" class="btn-primary">开始游戏</button>
+                <div class="rules-brief">
+                    <p>🃏 2副牌随机选54张 · 每人27张</p>
+                    <p>🏆 先出完手牌者获胜</p>
+                    <p>🃟 红桃级牌是万能牌(癞子)</p>
+                    <p>⬆️ 根据输家剩余牌数升级</p>
+                    <p>🏃 拖：每把最小的牌(打2时3是拖，打3时2是拖)</p>
+                    <p>📈 赢家纯拖收尾/输家憋拖 → 额外升级，♥拖双倍</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 游戏界面 -->
+        <div id="game-screen" class="screen hidden">
+            <!-- 顶部信息栏 -->
+            <div class="top-bar">
+                <div class="level-info">
+                    <span class="level-badge player-level-badge">你: <span id="player-level">2</span></span>
+                    <span class="trump-info">级牌: <span id="trump-rank">2</span></span>
+                    <span class="wild-info">癞子: <span id="wild-card-display">♥2</span></span>
+                    <span class="drag-info">拖: <span id="drag-card-display">3</span></span>
+                    <span class="level-badge ai-level-badge">电脑: <span id="ai-level">2</span></span>
+                </div>
+                <div class="round-info">第 <span id="round-num">1</span> 回合</div>
+            </div>
+
+            <!-- 电脑手牌区 -->
+            <div class="ai-area">
+                <div class="player-label">电脑 (<span id="ai-card-count">27</span>张)</div>
+                <div id="ai-hand" class="card-row ai-cards"></div>
+            </div>
+
+            <!-- 中央出牌区 -->
+            <div class="play-area">
+                <div class="play-zone ai-play-zone">
+                    <div class="play-label">电脑出牌</div>
+                    <div id="ai-played" class="played-cards"></div>
+                </div>
+                <div id="game-message" class="game-message"></div>
+                <div class="play-zone player-play-zone">
+                    <div class="play-label">你的出牌</div>
+                    <div id="player-played" class="played-cards"></div>
+                </div>
+            </div>
+
+            <!-- 玩家手牌区 -->
+            <div class="player-area">
+                <div class="player-label">你 (<span id="player-card-count">27</span>张)</div>
+                <div id="player-hand-wrapper" class="player-hand-wrapper">
+                    <div id="player-groups" class="player-groups"></div>
+                    <div id="player-hand" class="card-row player-cards"></div>
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="action-bar">
+                <button id="btn-hint" class="btn-action btn-hint">提示</button>
+                <button id="btn-pass" class="btn-action btn-pass">不出</button>
+                <button id="btn-play" class="btn-action btn-play">出牌</button>
+                <div class="action-divider"></div>
+                <button id="btn-group" class="btn-action btn-group">归组</button>
+                <button id="btn-auto-group" class="btn-action btn-auto-group">自动理牌</button>
+                <button id="btn-clear-groups" class="btn-action btn-clear-groups">取消理牌</button>
+            </div>
+        </div>
+
+        <!-- 回合结算界面 -->
+        <div id="result-screen" class="screen hidden">
+            <div class="result-content">
+                <h2 id="result-title" class="result-title"></h2>
+                <div id="result-details" class="result-details"></div>
+                <div class="level-display-start">
+                    <span class="level-badge player-level-badge">你: <span id="result-player-level">2</span></span>
+                    <span class="vs-text">VS</span>
+                    <span class="level-badge ai-level-badge">电脑: <span id="result-ai-level">2</span></span>
+                </div>
+                <button id="btn-next-round" class="btn-primary">下一回合</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>

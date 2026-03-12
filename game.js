@@ -382,8 +382,13 @@ function cardCompareValue(card, trumpRank) {
     const rank = card.rank;
     const order = ['3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A', '2'];
     let v = order.indexOf(rank) + 3;
-    // 当级牌不是2时，级牌提升为最大的非王牌
-    if (rank === trumpRank && trumpRank !== '2') v = 15.5;
+    if (trumpRank !== '2') {
+        // 当级牌不是2时：
+        // 级牌提升为最大的非王牌
+        if (rank === trumpRank) v = 15.5;
+        // 2变成最小的牌(比3还小)
+        else if (rank === '2') v = 2.5;
+    }
     return v;
 }
 
